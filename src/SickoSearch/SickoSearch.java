@@ -37,6 +37,8 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.NoSuchElementException;
+import java.util.function.Supplier;
 import javafx.scene.input.KeyCode;
 import javax.swing.AbstractAction;
 import javax.swing.JComponent;
@@ -50,6 +52,7 @@ import javax.swing.SwingUtilities;
 import javax.swing.border.LineBorder;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
+import javax.swing.table.DefaultTableModel;
 
 /**
  *
@@ -58,6 +61,8 @@ import javax.swing.event.DocumentListener;
 public class SickoSearch extends javax.swing.JFrame {
     
     static ArrayList<String> brands = new ArrayList<>();
+    static ArrayList<String> sites = new ArrayList<>();
+    static DefaultTableModel model = new DefaultTableModel();
     public static WebClient client;
 
     /**
@@ -66,6 +71,9 @@ public class SickoSearch extends javax.swing.JFrame {
     public SickoSearch() {
         initComponents();
         
+        model.setColumnIdentifiers(new String[]{"Product", "Link", "Price", "Favourite"});
+        tblProduct.setModel(model);
+
         java.util.logging.Logger.getLogger("com.gargoylesoftware").setLevel(Level.OFF); 
         System.setProperty("org.apache.commons.logging.Log", "org.apache.commons.logging.impl.NoOpLog");
             client = new WebClient(BrowserVersion.BEST_SUPPORTED);
@@ -73,18 +81,18 @@ public class SickoSearch extends javax.swing.JFrame {
             client.setJavaScriptTimeout(10000);
             client.getOptions().setJavaScriptEnabled(true);
             client.getOptions().setThrowExceptionOnScriptError(false);
+            client.getOptions().setThrowExceptionOnFailingStatusCode(false);
             client.getOptions().setCssEnabled(false);
             client.setAjaxController(new NicelyResynchronizingAjaxController());
             client.getOptions().setTimeout(10000);
             client.getOptions().setUseInsecureSSL(true);
             client.getOptions().setRedirectEnabled(true);
-            client.setCssErrorHandler(new SilentCssErrorHandler());
-            
+            client.setCssErrorHandler(new SilentCssErrorHandler());   
         
         try {
             
             BufferedReader br = new BufferedReader(new FileReader(
-                    "src/SuperSearch/designers.txt"));
+                    "src/SickoSearch/designers.txt"));
             
             String in = "";
             while ((in = br.readLine()) != null) {
@@ -245,81 +253,91 @@ public class SickoSearch extends javax.swing.JFrame {
 
     private void btnSearchActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnSearchActionPerformed
         // TODO add your handling code here:
+        List<Product> products = new ArrayList<>();
         
         try {
+            System.out.println("SS 258");
             
             HtmlPage page = client.getPage("https://www.endclothing.com/ca/clothing");
             String[] keys = txtSearch.getText().replace(" ", "").toLowerCase().split(",");
+            
+            System.out.println("SS 263");
+            boolean searchSuccess = false;
+            DomElement potentialSearchTag;
 
-                boolean searchSuccess = false;
-                DomElement potentialSearchTag;
-                
-                List<DomElement> psts = null;
-                for (int i = 0; i < 5 && !(psts != null && psts.size() > 0); i ++) {
-                
-                    System.out.println("SS 260");
-                    psts = page.getElementsByIdAndOrName("search");
-                }
-                
-                if (psts.size() > 0 && (potentialSearchTag = psts.get(0)) != null) {
+            List<DomElement> psts = null;
+            for (int i = 0; i < 20 && !(psts != null && psts.size() > 0); i ++) {
 
-                    searchSuccess = true;
+                System.out.println("SS 260");
+                psts = page.getElementsByIdAndOrName("search");
+            }
 
-                    System.out.println("SS 249 Search bar found");
+            if (psts.size() > 0 && (potentialSearchTag = psts.get(0)) != null) {
 
-                    potentialSearchTag.click();
-                    potentialSearchTag = StreamSupport.stream(page.getElementsByIdAndOrName("search").spliterator(), false)
-                            .filter(x -> x.getTagName().equals("input"))
-                            .findFirst()
-                            .get();
-                    //potentialSearchTag.setTextContent();
-                    ((HtmlElement) potentialSearchTag).type(txtBrand.getText() + txtSearch.getText().replace(", ", " "));
+                searchSuccess = true;
 
-                    while (!potentialSearchTag.getTagName().equals("button") && potentialSearchTag != null) {
+                System.out.println("SS 249 Search bar found");
 
-                        potentialSearchTag = potentialSearchTag.getNextElementSibling();
-                    }
+                potentialSearchTag.click();
+                potentialSearchTag = StreamSupport.stream(page.getElementsByIdAndOrName("search").spliterator(), false)
+                        .filter(x -> x.getTagName().equals("input"))
+                        .findFirst()
+                        .get();
+                //potentialSearchTag.setTextContent();
+                ((HtmlElement) potentialSearchTag).type(txtBrand.getText() + txtSearch.getText().replace(", ", " "));
 
-                    if (potentialSearchTag == null) {
+                while (!potentialSearchTag.getTagName().equals("button") && potentialSearchTag != null) {
 
-                        searchSuccess = false;
-                    }
-
-                    else {
-
-                        System.out.println("SS 78 " + page.asText());
-
-                        URL url = potentialSearchTag.click().getUrl();
-
-                        System.out.println(url);
-                        page = client.getPage(url);
-                        System.out.println("SS 281 " + page.asText());
-
-                        System.out.println("SS 269 " + getProductTags(page, keys));
-                    }
+                    potentialSearchTag = potentialSearchTag.getNextElementSibling();
                 }
 
-                if (!searchSuccess) {
+                if (potentialSearchTag == null) {
 
-                    System.out.println("SS 249 Search bar not found");
-
-                    Optional<DomElement> potentialBrandTag = getBrandTag(page, txtBrand.getText().toUpperCase());
-                    DomElement productTag;
-
-                    if (potentialBrandTag != null && potentialBrandTag.isPresent()) {
-
-                        DomElement brandTag = potentialBrandTag.get();
-                        page = brandTag.click();
-
-                        System.out.println("SS 275 " + getProductTags(page, keys));
-                    }
-
-                    else {
-
-                        System.out.println("No brand tag found");
-                    }
+                    searchSuccess = false;
                 }
-        } catch (IOException e) {e.printStackTrace();}
+
+                else {
+
+                    System.out.println("SS 78 " + page.asText());
+
+                    URL url = potentialSearchTag.click().getUrl();
+
+                    System.out.println(url);
+                    page = client.getPage(url);
+                    System.out.println("SS 281 " + page.asText());
+
+                    products.addAll(getProductTags(page, keys, true));
+                }
+            }
+
+            if (!searchSuccess) {
+
+                System.out.println("SS 249 Search bar not found");
+
+                Optional<DomElement> potentialBrandTag = getBrandTag(page, txtBrand.getText().toUpperCase());
+                DomElement productTag;
+
+                if (potentialBrandTag != null && potentialBrandTag.isPresent()) {
+
+                    DomElement brandTag = potentialBrandTag.get();
+                    page = brandTag.click();
+
+                    System.out.println("SS 275 " + getProductTags(page, keys, false));
+                }
+
+                else {
+
+                    System.out.println("No brand tag found");
+                }
+            }
+
+            for (Product p : products) {
+
+                model.addRow(new String[]{p.getName(), p.getLink(), p.getCost()});
+            }
+        } 
+        catch (IOException e) {e.printStackTrace();} 
+        catch (NoSuchElementException nsee) {nsee.printStackTrace();}
     }//GEN-LAST:event_btnSearchActionPerformed
 
     public static Optional<DomElement> getBrandTag(HtmlPage page, String brand) throws IOException {
@@ -407,17 +425,25 @@ public class SickoSearch extends javax.swing.JFrame {
         return false;
     }
     
-    public String getProductTags(HtmlPage page, String[] keys) {
+    public List<Product> getProductTags(HtmlPage page, String[] keys, boolean searched) throws IOException, NoSuchElementException {
         
-        System.out.println("SS 280 " + page);
+        String initialLink = page.getBaseURI();
         boolean isProduct;
-
+        
+        List<Product> products = new ArrayList<>();
+        
+        String link;
+        String cost;
+        String name;
+        
         List<DomElement> imgs = null;
-        for (int i = 0; i < 5 && !(imgs != null && imgs.size() > 0); i ++) {
+        System.out.println("SS 438 " + page);
+        for (int i = 0; i < 20 && !(imgs != null && imgs.size() > 0); i ++) {
 
-            System.out.println("SS 260");
+            System.out.println("SS 440");
             imgs = page.getElementsByTagName("img");
         }
+        
         for (DomElement de : imgs) {
             
             System.out.println("SS 398 " + de);
@@ -436,23 +462,70 @@ public class SickoSearch extends javax.swing.JFrame {
                 }
             }
             
-            for (String s : keys) {
+            if (!searched) {
                 
-                System.out.println("SS 394 " + de.getAttribute("href"));
+                for (String s : keys) {
+
+                    System.out.println("SS 394 " + de.getAttribute("href"));
+
+                    if (!de.getAttribute("href").toLowerCase().contains(s)) {
+
+                        isProduct = false;
+                    }
+                }
+            }
+            
+            else {
                 
-                if (!de.getAttribute("href").toLowerCase().contains(s)) {
-                    
-                    isProduct = false;
+                isProduct = true;
+                for (String s : keys) {
+
+                    System.out.println("SS 481 " + de.getAttribute("href"));
+
+                    if (!de.getAttribute("href").toLowerCase().contains(s)) {
+                        
+                        isProduct = false;
+                    }
                 }
             }
             
             if (isProduct) {
                 
-                return de.getAttribute("href");
+                link = de.getAttribute("href");
+                page = client.getPage(link);
+                
+                System.out.println("SS 499 " + link);
+                
+                Optional<DomElement> potentialCostTag = null;
+                for (int i = 0; i < 20 && !(potentialCostTag != null && potentialCostTag.isPresent()); i ++) {
+
+                    System.out.println("SS 501");
+                    potentialCostTag = StreamSupport
+                            .stream(page.getElementsByTagName("span").spliterator(), false)
+                            .filter(x -> x.getTextContent().contains("$"))
+                            .findFirst();
+                }
+                
+                if (potentialCostTag != null && potentialCostTag.isPresent()) {
+                    
+                    System.out.println("SS 509");
+                    
+                    cost = potentialCostTag
+                            .get()
+                            .getTextContent();
+
+                    if (cost != null) {
+
+                        page = client.getPage(initialLink);
+                        name = de.getTextContent();
+
+                        products.add(new Product(link, cost, name));
+                    }
+                }
             }
         }
         
-        return null;
+        return products;
     }
     
     /**
@@ -491,7 +564,6 @@ public class SickoSearch extends javax.swing.JFrame {
         });
     }
     
-    //via David Kroukamp, @https://stackoverflow.com/questions/14186955/create-a-autocompleting-textbox-in-java-with-a-dropdown-list
     class AutoSuggestor {
 
         private final JTextField textField;
@@ -816,7 +888,7 @@ public class SickoSearch extends javax.swing.JFrame {
             String typedWord = autoSuggestor.getCurrentlyTypedWord();
             String t = text.substring(0, text.lastIndexOf(typedWord));
             String tmp = t + text.substring(text.lastIndexOf(typedWord)).replace(typedWord, suggestedWord);
-            textField.setText(tmp + " ");
+            textField.setText(tmp);
         }
     }
 
