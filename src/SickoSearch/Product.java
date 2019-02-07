@@ -1,13 +1,8 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
 
 package SickoSearch;
 
 /**
- *
+ * Holds product information
  * @author muisl6048
  */
 class Product {
@@ -16,6 +11,12 @@ class Product {
     private String cost;
     private String name;
     
+    /**
+     * instantiates product
+     * @param link
+     * @param cost
+     * @param name 
+     */
     public Product(String link, String cost, String name) {
         
         this.link = link;
@@ -63,5 +64,14 @@ class Product {
      */
     public void setName(String name) {
         this.name = name;
+    }
+
+    /**
+     * outputs all info
+     * @return 
+     */
+    @Override
+    public String toString() {
+        return "Product{" + "link=" + link + ", cost=" + cost + ", name=" + name + '}';
     }
 }
